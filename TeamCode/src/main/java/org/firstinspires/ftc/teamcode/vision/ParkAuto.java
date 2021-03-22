@@ -1,23 +1,3 @@
-/*
- * Copyright (c) 2020 OpenFTC Team
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
 package org.firstinspires.ftc.teamcode.vision;
 
 
@@ -46,23 +26,23 @@ import org.openftc.easyopencv.OpenCvCameraRotation;
 import org.openftc.easyopencv.OpenCvPipeline;
 
 @Autonomous
-public class RingSense1 extends LinearOpMode
+public class ParkAuto extends LinearOpMode
 {
-
 
     BNO055IMU               imu;
     Orientation lastAngles = new Orientation();
     double                  globalAngle, power = .30, correction;
     OpenCvCamera webcam;
-    SkystoneDeterminationPipeline pipeline;
+    org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline pipeline;
     public DcMotor LeftFront  = null;
     public DcMotor LeftRear   = null;
     public DcMotor RightFront = null;
     public DcMotor RightRear  = null;
     public DcMotor Shooter    = null;
-    public Servo ShootAngle = null;
+    public Servo   ShootAngle = null;
     public Servo   ShooterArm = null;
     public DcMotor Intake     = null;
+    public DcMotor WobbleArm  = null;
     double WHEEL_CIRCUMFERENCE = 3.78;
     double ENCODER_TICKS_PER_ROTATION = 537.6;
 
@@ -72,17 +52,17 @@ public class RingSense1 extends LinearOpMode
     public void runOpMode()
     {
 
-
 //------------------------------PhoneHardWareMap--------------------------------------------------\\
 
-        LeftRear   = hardwareMap.dcMotor.get(" BackLeft   ");
-        LeftFront  = hardwareMap.dcMotor.get(" FrontLeft  ");
-        RightFront = hardwareMap.dcMotor.get(" FrontRight ");
-        RightRear  = hardwareMap.dcMotor.get(" BackRight  ");
+        LeftRear    = hardwareMap.dcMotor.get (" BackLeft   ");
+        LeftFront   = hardwareMap.dcMotor.get (" FrontLeft  ");
+        RightFront  = hardwareMap.dcMotor.get (" FrontRight ");
+        RightRear   = hardwareMap.dcMotor.get (" BackRight  ");
         Intake      = hardwareMap.dcMotor.get ( "Intake      ");
         Shooter     = hardwareMap.dcMotor.get ( "Shooter     ");
         ShooterArm  = hardwareMap.servo.get   ( "ShooterArm  ");
         ShootAngle  = hardwareMap.servo.get   ( "ShooterAngle");
+        WobbleArm     = hardwareMap.dcMotor.get ( "WobbleArm    ");
 
 //------------------------------Direction---------------------------------------------------------\\
         //Reverse spins motors to the right Forward spins motors to the left
@@ -92,19 +72,21 @@ public class RingSense1 extends LinearOpMode
         RightRear .setDirection (DcMotorSimple.Direction.REVERSE);
         Shooter   .setDirection (DcMotorSimple.Direction.REVERSE);
         Intake    .setDirection (DcMotorSimple.Direction.REVERSE);
+        WobbleArm .setDirection (DcMotorSimple.Direction.REVERSE);
 
 //------------------------------Encoder---------------------------------------------------------\\
 
         LeftFront .setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        LeftRear  .setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        RightFront.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        LeftRear  .setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        RightFront.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         RightRear .setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        WobbleArm .setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         LeftFront  .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         LeftRear   .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         RightFront .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         RightRear  .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        Shooter .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        Shooter    .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
 
         BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
@@ -128,19 +110,20 @@ public class RingSense1 extends LinearOpMode
             sleep(50);
             idle();
         }
+
         telemetry.addData("Mode", "waiting for start");
         telemetry.addData("imu calib status", imu.getCalibrationStatus().toString());
         telemetry.update();
         //Dont look unless broken
         int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
         webcam = OpenCvCameraFactory.getInstance().createWebcam(hardwareMap.get(WebcamName.class, "Webcam 1"), cameraMonitorViewId);
-        pipeline = new SkystoneDeterminationPipeline();
+        pipeline = new org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline();
         webcam.setPipeline(pipeline);
 
         // We set the viewport policy to optimized view so the preview doesn't appear 90 deg
         // out when the RC activity is in portrait. We do our actual image processing assuming
         // landscape orientation, though.
-  //      webcam.setViewportRenderingPolicy(OpenCvCamera.ViewportRenderingPolicy.OPTIMIZE_VIEW);
+        //      webcam.setViewportRenderingPolicy(OpenCvCamera.ViewportRenderingPolicy.OPTIMIZE_VIEW);
 
         webcam.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener()
         {
@@ -156,230 +139,28 @@ public class RingSense1 extends LinearOpMode
         resetAngle();
 
 
-// If sense four rings play this
-        if (pipeline.getAnalysis()>pipeline.FOUR_RING_THRESHOLD)
-        {
+        sleep(1000);
+        // If sense four rings play this
 
-            webcam.stopStreaming();
-            telemetry.addData("square","Far");
-            telemetry.addData("Ring", "FOUR");
-            telemetry.update();
-
-
-            //drives off wall
-            ShootAngle.setPosition(.714);
-            Drive(5,-.6);
-            //strafes to line up with 4
-            Strafe(20,-.6);
-            sleep(1000);
-            //drives down to square
-            Drive(100,-.6);
-            //drives to shoot line
-            Drive(22,.6);
-            sleep(500);
-            //strafe to shoot
-            Strafe(24,.6);
-            Drive(26 , .6);
-            Shooter.setPower(1);
-            sleep(1000);
-            ShooterArm.setPosition(0);
-            Shooter.setPower(1);
-            sleep(500);
-            ShooterArm.setPosition(.259);
-            Shooter.setPower(1);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(.259);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            Shooter.setPower(0);
-            ShooterArm.setPosition(.259);
-            sleep(500);
-            Drive(11,-.6);
-
-
-
-
-//not being used right now
-            /*
-            ShootAngle.setPosition(1);
-            sleep(500);
-            Intake.setPower(1);
-            Drive(7,.6);
-            sleep(1000);
-            ShootAngle.setPosition(.70);
-            sleep(500);
-            Drive(5,.4);
-            sleep(500);
-            Shooter.setPower(1);
-            sleep(1000);
-            Intake.setPower(0);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            ShooterArm.setPosition(.259);
-            sleep(500);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            ShooterArm.setPosition(.259);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            ShooterArm.setPosition(.259);
-            Drive(25,-.6);
-            Shooter.setPower(0);*/
-
-
-
-
-
-
-
-//not being used right now
-            /*Drive(10,.3);
-            rotate(165,.3);
-            Strafe(3,.3);
-            //drives to 2nd wobble
-            Drive(35,-.3);
-            sleep(1000);
-            rotate(165,.3);
-            //strafes
-            /*Strafe(50,-.4);
-            resetAngle();
-             Strafe(5,.6);
-            //drives to drop
-            Drive(90,-.6);
-            Drive(40,.6);
-            Strafe(24,.6);*/
-
-
-        }
-        else if (pipeline.getAnalysis()>pipeline.ONE_RING_THRESHOLD)
-        {
-            webcam.stopStreaming();
-            telemetry.addData("square","middle ");
-            telemetry.addData("Rings", "One");
-            telemetry.update();
-
-
-            ShootAngle.setPosition(.71);
-            Drive(5,-.6);
-            Strafe(20,-.6);
-            Drive (71 ,-.6);
-            sleep(500);
-            Strafe(21.5, .6);
-            Drive(20, .6);
-            Shooter.setPower(1);
-            sleep(1000);
-            ShooterArm.setPosition(0);
-            Shooter.setPower(1);
-            sleep(500);
-            ShooterArm.setPosition(.259);
-            Shooter.setPower(1);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(.259);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            Shooter.setPower(0);
-            ShooterArm.setPosition(.259);
-            ShootAngle.setPosition(1);
-            sleep(500);
-            Intake.setPower(1);
-            Drive(5,.6);
-            sleep(1500);
-            Drive(2, -.6);
-            Intake.setPower(0);
-            ShootAngle.setPosition(.70);
-            sleep(500);
-            Shooter.setPower(1);
-            sleep(1000);
-            ShooterArm.setPosition(0);
-            sleep(1000);
-            ShooterArm.setPosition(.259);
-            Drive(7,-.6);
-            Drive(5,-.6);
-            Shooter.setPower(0);
-
-
-
-
-
-
-
-
-
-        }
-        else
-        {
-
-            webcam.stopStreaming();
-            telemetry.addData("square ","close");
-            telemetry.addData( "Rings","None");
-            telemetry.update();
-
-
-            ShootAngle.setPosition(.71);
-            Drive(5,-.6);
-            Strafe(20,-.6);
-            Drive (55 ,-.6);
-            Drive(10,.6);
-            Strafe(23,.6);
-            Drive(4,-.6);
-            Shooter.setPower(1);
-            sleep(1000);
-            ShooterArm.setPosition(0);
-            Shooter.setPower(1);
-            sleep(500);
-            ShooterArm.setPosition(.259);
-            Shooter.setPower(1);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(.259);
-            sleep(500);
-            Shooter.setPower(1);
-            ShooterArm.setPosition(0);
-            sleep(500);
-            Shooter.setPower(0);
-            ShooterArm.setPosition(1);
-            sleep(500);
-            Drive(11,-.6);
-
-
-
-
-
-
-        }
-
-
-
-
-
-
-
-
-        while (opModeIsActive()){
-            telemetry.addData("Analysis", pipeline.getAnalysis());
-            telemetry.addData("Position", pipeline.position);
-            telemetry.update();
-            sleep(50);
-        }
-
-
-
-
+        ShooterArm.setPosition(.259);
+        Drive(24,-.65);
+        Strafe(20,.5);
+        Drive(64,-.65);
+        Strafe(20,-.5);
+        /*Shooter.setPower(1);
+        sleep(1000);
+        ShooterArm.setPosition(0);
+        sleep(500);
+        ShooterArm.setPosition(.259);
+        sleep(250);
+        ShooterArm.setPosition(0);
+        sleep(500);
+        ShooterArm.setPosition(.259);
+        sleep(500);
+        ShooterArm.setPosition(0);
+        sleep(300);
+        Shooter.setPower(0);
+        Drive(24,-.25);*/
 
 
     }
@@ -420,9 +201,7 @@ public class RingSense1 extends LinearOpMode
 
     public static class SkystoneDeterminationPipeline extends OpenCvPipeline
     {
-        /*
-         * An enum to define the skystone position
-         */
+
         public enum RingPosition
         {
             FOUR,
@@ -437,22 +216,21 @@ public class RingSense1 extends LinearOpMode
         /*
          * The core values which define the location and size of the sample regions
          */
-                                                                   //location
-        static final Point REGION1_TOPLEFT_ANCHOR_POINT = new Point(93,92);
-          //Size
-        static final int REGION_WIDTH  = 35;
-        static final int REGION_HEIGHT = 25;
-          //Threshholds
-        final int FOUR_RING_THRESHOLD = 160;
-        final int ONE_RING_THRESHOLD  = 135;
-
+        //location95
+        static final Point REGION1_TOPLEFT_ANCHOR_POINT = new Point(105,107);
+        //Size
+        static final int REGION_WIDTH  = 50;
+        static final int REGION_HEIGHT = 30;
+        //Threshholds
+        final int FOUR_RING_THRESHOLD = 156;
+        final int ONE_RING_THRESHOLD  = 140;
+        //idk stuff down from here
         Point region1_pointA = new Point(
                 REGION1_TOPLEFT_ANCHOR_POINT.x,
                 REGION1_TOPLEFT_ANCHOR_POINT.y);
         Point region1_pointB = new Point(
                 REGION1_TOPLEFT_ANCHOR_POINT.x + REGION_WIDTH,
                 REGION1_TOPLEFT_ANCHOR_POINT.y + REGION_HEIGHT);
-
         /*
          * Working variables
          */
@@ -462,7 +240,7 @@ public class RingSense1 extends LinearOpMode
         int avg1;
 
         // Volatile since accessed by OpMode thread w/o synchronization
-        private volatile RingPosition position = RingPosition.FOUR;
+        private volatile org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline.RingPosition position = org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline.RingPosition.FOUR;
 
         /*
          * This function takes the RGB frame, converts to YCrCb,
@@ -496,14 +274,14 @@ public class RingSense1 extends LinearOpMode
                     BLUE, // The color the rectangle is drawn in
                     2); // Thickness of the rectangle lines
 
-            position = RingPosition.FOUR; // Record our analysis
+            position = org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline.RingPosition.FOUR; // Record our analysis
             if(avg1 > FOUR_RING_THRESHOLD){
-                position = RingPosition.FOUR;
+                position = org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline.RingPosition.FOUR;
 
             }else if (avg1 > ONE_RING_THRESHOLD){
-                position = RingPosition.ONE;
+                position = org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline.RingPosition.ONE;
             }else{
-                position = RingPosition.NONE;
+                position = org.firstinspires.ftc.teamcode.vision.ShootAuto.SkystoneDeterminationPipeline.RingPosition.NONE;
             }
 
             Imgproc.rectangle(
@@ -523,8 +301,6 @@ public class RingSense1 extends LinearOpMode
 
     }
 
-
-
     public void Strafe  (double Inch, double Power) {
         int DistanceTicks = ConvertInchesToRotations(Inch);
 
@@ -540,7 +316,6 @@ public class RingSense1 extends LinearOpMode
             RightRear .setPower(Power);
             telemetry.addData("Target"   , DistanceTicks);
             telemetry.addData("EncoderLF",LeftFront .getCurrentPosition());
-            telemetry.addData("EncoderLR",LeftRear  .getCurrentPosition());
             telemetry.update();
         }
         LeftFront .setPower(0);
@@ -563,8 +338,8 @@ public class RingSense1 extends LinearOpMode
         RightRear.setMode (DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         LeftFront.setMode (DcMotor.RunMode.RUN_USING_ENCODER);
-        LeftRear.setMode  (DcMotor.RunMode.RUN_USING_ENCODER);
-        RightFront.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        LeftRear.setMode  (DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        RightFront.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         RightRear.setMode (DcMotor.RunMode.RUN_USING_ENCODER);
 
 
@@ -577,10 +352,6 @@ public class RingSense1 extends LinearOpMode
         globalAngle = 0;
     }
 
-    /**
-     * Get current cumulative angle rotation from last reset.
-     * @return Angle in degrees. + = left, - = right.
-     */
     private double getAngle()
     {
         // We experimentally determined the Z axis is the axis we want to use for heading angle.
@@ -604,10 +375,6 @@ public class RingSense1 extends LinearOpMode
         return globalAngle;
     }
 
-    /**
-     * See if we are moving in a straight line and if not return a power correction value.
-     * @return Power adjustment, + is adjust left - is adjust right.
-     */
     private double checkDirection()
     {
         // The gain value determines how sensitive the correction is to direction changes.
@@ -626,7 +393,6 @@ public class RingSense1 extends LinearOpMode
 
         return correction;
     }
-    /* Not being used
 
     private void rotate(int degrees, double power)
     {
@@ -680,6 +446,5 @@ public class RingSense1 extends LinearOpMode
         // reset angle tracking on new heading.
         resetAngle();
     }
-*/
 
 }
